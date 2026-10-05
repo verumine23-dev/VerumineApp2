@@ -28,13 +28,7 @@ env:
 
   CCMINER_ARM64_A55_SHA256: "d3b182994e499dd4957ebeead25565c382b7e6b6efa4a017533d9b22f0d83f7c"
 
-  # ==========================================================
-  # CCMINER ARM LEGACY - FALLBACK
-  # ==========================================================
-  CCMINER_ARM64_LEGACY_URL: "https://github.com/Oink70/Android-Mining/releases/download/v3.8.2-2/ccminer-v3.8.2-2_ARM"
-
-  CCMINER_ARM64_LEGACY_SHA256: "b9f2307e990779b8ea11808f1ccfed2f9fb103b75d67ad55ea9416e7ffe569cf"
-
+   
 jobs:
 
   build:
@@ -257,49 +251,7 @@ jobs:
 
           echo "SHA256 ARM64 A55 validé."
 
-      # ========================================================
-      # 9. CCMINER LEGACY
-      # ========================================================
-
-      - name: Download ccminer ARM64 legacy fallback
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          OUTPUT="app/src/main/assets/miners/arm64-v8a/ccminer-legacy"
-
-          curl \
-            -L \
-            --fail \
-            --show-error \
-            --retry 5 \
-            --retry-delay 2 \
-            "$CCMINER_ARM64_LEGACY_URL" \
-            -o "$OUTPUT"
-
-          chmod +x "$OUTPUT"
-
-          echo "SHA256 ARM64 legacy :"
-
-          sha256sum "$OUTPUT"
-
-          ACTUAL_SHA256="$(
-            sha256sum "$OUTPUT" \
-              | awk '{print $1}'
-          )"
-
-          if [
-            "$ACTUAL_SHA256"
-              !=
-            "$CCMINER_ARM64_LEGACY_SHA256"
-          ]; then
-
-            echo "ERREUR : SHA256 ARM64 legacy invalide."
-
-            exit 1
-          fi
-
-          echo "SHA256 ARM64 legacy validé."
+       
 
       # ========================================================
       # 10. README ASSETS
