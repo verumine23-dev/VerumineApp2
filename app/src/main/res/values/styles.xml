@@ -1,0 +1,16 @@
+<resources>
+    <style name="Theme.Verumine" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/neon_violet_primary</item>
+        <item name="colorPrimaryVariant">@color/neon_violet_light</item>
+        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="android:windowBackground">@drawable/bg_neon_gradient</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:navigationBarColor">#0A051B</item>
+        <item name="android:statusBarColor">#0A051B</item>
+    </style>
+    
+    <style name="NeonDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_card_dark</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+    </style>
+</resources>

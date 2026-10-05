@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="200dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_card_dark"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:paddingStart="12dp" android:text="👤 Profil" android:textColor="#FFFFFF" />
+    <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:paddingStart="12dp" android:text="⚡ Minage" android:textColor="#FFFFFF" />
+    <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:paddingStart="12dp" android:text="👛 Wallet" android:textColor="#FFFFFF" />
+    <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:paddingStart="12dp" android:text="📱 Appareils" android:textColor="#FFFFFF" />
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2B1B61" android:layout_marginVertical="4dp" />
+    <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:paddingStart="12dp" android:text="🚪 Se déconnecter" android:textColor="#FF5252" />
+
+</LinearLayout>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/tvAppTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="VERUMINE MINER"
+        android:textColor="#00F5D4"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Compteur BTC -->
+    <LinearLayout
+        android:id="@+id/cardBtc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_card_dark"
+        android:gravity="center"
+        android:padding="20dp"
+        android:layout_marginTop="30dp"
+        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
+        <TextView
+            android:id="@+id/tvBtcCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0.0000000001 BTC"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvXP"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="320 XP"
+        android:textColor="#7B2CBF"
+        android:layout_marginTop="20dp"
+        app:layout_constraintTop_toBottomOf="@id/cardBtc"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Zone Tap to Mine -->
+    <FrameLayout
+        android:id="@+id/btnTapToMine"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:background="@drawable/bg_button_gradient"
+        android:layout_marginTop="40dp"
+        app:layout_constraintTop_toBottomOf="@id/tvXP"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+        
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="TAP TO MINE"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <!-- Énergie Restante -->
+    <TextView
+        android:id="@+id/tvEnergyPercent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="100%"
+        android:textColor="#00F5D4"
+        android:layout_marginTop="20dp"
+        app:layout_constraintTop_toBottomOf="@id/btnTapToMine"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/btnWithdraw"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:background="@drawable/bg_card_dark"
+        android:text="WITHDRAW"
+        android:textColor="#00F5D4"
+        android:layout_marginBottom="20dp"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

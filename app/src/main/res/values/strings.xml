@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Verumine</string>
+    <string name="tap_to_mine">TAP TO MINE</string>
+    <string name="withdraw">RETIRER</string>
+</resources>

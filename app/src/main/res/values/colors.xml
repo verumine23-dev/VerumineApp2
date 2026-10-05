@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backgrounds -->
+    <color name="bg_dark_purple">#0A051B</color>
+    <color name="bg_card_purple">#120B2E</color>
+    
+    <!-- Neon Highlights -->
+    <color name="neon_violet_primary">#7B2CBF</color>
+    <color name="neon_violet_light">#9D4EDD</color>
+    <color name="neon_cyan">#00F5D4</color>
+    <color name="neon_pink">#F72585</color>
+    
+    <!-- Text -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#A099C4</color>
+</resources>
