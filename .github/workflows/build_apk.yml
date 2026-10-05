@@ -495,27 +495,48 @@ jobs:
       # 17. ZIPALIGN
       # ========================================================
 
-      - name: Align APK
+            - name: Zipalign APK
         shell: bash
         run: |
           set -euo pipefail
 
-          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
+          ZIPALIGN="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/zipalign"
 
-          "$BUILD_TOOLS/zipalign" \
+          if [ ! -x "$ZIPALIGN" ]; then
+            echo "ERREUR : zipalign introuvable : $ZIPALIGN"
+            exit 1
+          fi
+
+          echo "Zipalign utilisé :"
+          "$ZIPALIGN" -h | head -n 5 || true
+
+          echo "Alignement de l'APK..."
+
+          "$ZIPALIGN" \
             -f \
             -p \
             4 \
             app-release-unsigned.apk \
-            aligned.apk
+            app-release-aligned.apk
 
-          "$BUILD_TOOLS/zipalign" \
+          if [ ! -f app-release-aligned.apk ]; then
+            echo "ERREUR : APK aligné non généré."
+            exit 1
+          fi
+
+          echo "APK aligné avec succès :"
+          ls -lh app-release-aligned.apk
+
+          echo "Vérification de l'alignement..."
+
+          "$ZIPALIGN" \
             -c \
-            -P 16 \
+            -p \
+            -v \
             4 \
-            aligned.apk
+            app-release-aligned.apk
 
-          ls -lh aligned.apk
+          echo "ZIPALIGN OK."
 
       # ========================================================
       # 18. KEYSTORE
