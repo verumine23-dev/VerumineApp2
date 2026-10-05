@@ -121,7 +121,7 @@ public class DashboardFragment extends Fragment {
     }
 
     private void showMinimumNotReachedModal() {
-        new AlertDialog.Builder(requireContext(), R.style.Theme_AppCompat_Dialog_Alert)
+        new AlertDialog.Builder(requireContext())
                 .setTitle("Retrait impossible")
                 .setMessage("Le solde minimum de retrait (" + MINIMUM_WITHDRAWAL + " BTC) n'est pas encore atteint.")
                 .setPositiveButton("Compris", (dialog, which) -> dialog.dismiss())
