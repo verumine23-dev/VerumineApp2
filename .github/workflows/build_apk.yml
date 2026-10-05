@@ -1,4 +1,3 @@
-```yaml
 name: Build Verumine APK - Multi ABI
 
 on:
@@ -936,4 +935,4 @@ jobs:
           path: Verumine.apk
           if-no-files-found: error
           retention-days: 14
-```
+
