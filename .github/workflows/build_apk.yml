@@ -1,4 +1,4 @@
-name: Build Verumine APK
+name: Build Verumine APK - Multi ABI
 
 on:
   workflow_dispatch:
@@ -9,446 +9,735 @@ on:
 permissions:
   contents: read
 
+env:
+  ANDROID_COMPILE_SDK: "34"
+  ANDROID_BUILD_TOOLS: "34.0.0"
+  GRADLE_VERSION: "8.2"
+
+  # ==========================================================
+  # CCMINER ARM64 A53 - OFFICIEL
+  # ==========================================================
+  CCMINER_ARM64_A53_URL: "https://github.com/Oink70/CCminer-ARM-optimized/releases/download/v3.8.3-4/ccminer-3.8.3-4_ARM"
+
+  CCMINER_ARM64_A53_SHA256: "56f71fa313d5f942283ea1d8f02f679088c612f08607928f33612d4f387fb004"
+
+  # ==========================================================
+  # CCMINER ARM64 A55 - OFFICIEL
+  # ==========================================================
+  CCMINER_ARM64_A55_URL: "https://github.com/Oink70/CCminer-ARM-optimized/releases/download/v3.8.3-4/ccminer-v3.8.3-4_ARM-A55"
+
+  CCMINER_ARM64_A55_SHA256: "d3b182994e499dd4957ebeead25565c382b7e6b6efa4a017533d9b22f0d83f7c"
+
+  # ==========================================================
+  # CCMINER ARM LEGACY - FALLBACK
+  # ==========================================================
+  CCMINER_ARM64_LEGACY_URL: "https://github.com/Oink70/Android-Mining/releases/download/v3.8.2-2/ccminer-v3.8.2-2_ARM"
+
+  CCMINER_ARM64_LEGACY_SHA256: "b9f2307e990779b8ea11808f1ccfed2f9fb103b75d67ad55ea9416e7ffe569cf"
+
 jobs:
+
   build:
+
     name: Build and Sign Verumine APK
+
     runs-on: ubuntu-latest
 
     steps:
 
-      # ============================================================
-      # 1. Récupération du projet
-      # ============================================================
+      # ========================================================
+      # 1. CHECKOUT
+      # ========================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # ============================================================
-      # 2. Java 17
-      # ============================================================
+      # ========================================================
+      # 2. JAVA 17
+      # ========================================================
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+          cache: gradle
 
-
-      # ============================================================
-      # 3. Configuration Android SDK
-      # ============================================================
+      # ========================================================
+      # 3. ANDROID SDK
+      # ========================================================
 
       - name: Configure Android SDK
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           echo "ANDROID_HOME=$ANDROID_HOME"
 
-          # Recherche du sdkmanager installé sur le runner
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
-            -type f \
-            -name "sdkmanager" \
-            | head -n 1)
+          test -d "$ANDROID_HOME"
+
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1 || true)"
 
           if [ -z "$SDKMANAGER" ]; then
             echo "ERREUR : sdkmanager introuvable."
-            echo "Contenu de cmdline-tools :"
-            find "$ANDROID_HOME/cmdline-tools" -maxdepth 3 -type f -print || true
-            exit 1
-          fi
 
-          echo "sdkmanager trouvé : $SDKMANAGER"
-
-          # Acceptation des licences
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-
-          # Installation des composants nécessaires
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0"
-
-          echo ""
-          echo "======================================"
-          echo "ANDROID SDK CONFIGURÉ"
-          echo "======================================"
-
-          echo ""
-          echo "Platforms :"
-          ls -la "$ANDROID_HOME/platforms"
-
-          echo ""
-          echo "Build Tools :"
-          ls -la "$ANDROID_HOME/build-tools"
-
-
-      # ============================================================
-      # 4. Configuration Gradle
-      # ============================================================
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.2'
-
-
-      # ============================================================
-      # 5. Vérification de l'environnement
-      # ============================================================
-
-      - name: Check build environment
-        shell: bash
-        run: |
-          set -e
-
-          echo "======================================"
-          echo "ENVIRONNEMENT DE COMPILATION"
-          echo "======================================"
-
-          echo ""
-          echo "Java :"
-          java -version
-
-          echo ""
-          echo "Gradle :"
-          gradle --version
-
-          echo ""
-          echo "ANDROID_HOME :"
-          echo "$ANDROID_HOME"
-
-          echo ""
-          echo "Build Tools :"
-          ls -la "$ANDROID_HOME/build-tools/34.0.0"
-
-
-      # ============================================================
-      # 6. Télécharger ccminer ARM64
-      # ============================================================
-
-      - name: Download ccminer ARM64
-        shell: bash
-        run: |
-          set -e
-
-          mkdir -p app/src/main/assets
-
-          URL="https://github.com/Oink70/CCminer-ARM-optimized/releases/download/v3.8.3-4/ccminer-3.8.3-4_ARM"
-
-          OUTPUT="app/src/main/assets/ccminer-arm64"
-
-          echo "======================================"
-          echo "TÉLÉCHARGEMENT DE CCMINER"
-          echo "======================================"
-
-          echo "URL : $URL"
-          echo "Destination : $OUTPUT"
-
-          curl \
-            -L \
-            --fail \
-            --show-error \
-            --retry 3 \
-            "$URL" \
-            -o "$OUTPUT"
-
-          chmod +x "$OUTPUT"
-
-          EXPECTED_SHA256="56f71fa313d5f942283ea1d8f02f679088c612f08607928f33612d4f387fb004"
-
-          ACTUAL_SHA256=$(sha256sum "$OUTPUT" | awk '{print $1}')
-
-          echo ""
-          echo "SHA256 attendu :"
-          echo "$EXPECTED_SHA256"
-
-          echo ""
-          echo "SHA256 obtenu :"
-          echo "$ACTUAL_SHA256"
-
-          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo ""
-            echo "ERREUR : SHA256 de ccminer incorrect."
-            exit 1
-          fi
-
-          echo ""
-          echo "ccminer vérifié avec succès."
-
-          echo ""
-          ls -lh "$OUTPUT"
-
-
-      # ============================================================
-      # 7. Vérification de la structure Android
-      # ============================================================
-
-      - name: Check Android project
-        shell: bash
-        run: |
-          set -e
-
-          echo "======================================"
-          echo "STRUCTURE DU PROJET"
-          echo "======================================"
-
-          echo ""
-          echo "Projet :"
-          ls -la
-
-          echo ""
-          echo "Application :"
-          ls -la app
-
-          echo ""
-          echo "Java :"
-          find app/src/main/java -type f -name "*.java" -print
-
-          echo ""
-          echo "Assets :"
-          find app/src/main/assets -maxdepth 2 -type f -print
-
-
-      # ============================================================
-      # 8. Nettoyage + compilation Release
-      # ============================================================
-
-      - name: Build Release APK
-        shell: bash
-        run: |
-          set -e
-
-          echo "======================================"
-          echo "COMPILATION DE VERUMINE"
-          echo "======================================"
-
-          gradle clean assembleRelease --stacktrace
-
-
-      # ============================================================
-      # 9. Recherche de l'APK
-      # ============================================================
-
-      - name: Locate Release APK
-        shell: bash
-        run: |
-          set -e
-
-          echo "======================================"
-          echo "APK GÉNÉRÉS"
-          echo "======================================"
-
-          find app/build/outputs/apk \
-            -type f \
-            -name "*.apk" \
-            -print
-
-          APK=$(find app/build/outputs/apk/release \
-            -type f \
-            -name "*.apk" \
-            | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo ""
-            echo "ERREUR : aucun APK Release trouvé."
-
-            echo ""
-            echo "Contenu de app/build/outputs :"
-
-            find app/build/outputs \
+            find "$ANDROID_HOME" \
+              -maxdepth 4 \
               -type f \
+              -name sdkmanager \
               -print || true
 
             exit 1
           fi
 
-          echo ""
-          echo "APK trouvé : $APK"
+          echo "SDKMANAGER=$SDKMANAGER"
 
-          cp "$APK" app-release-unsigned.apk
+          yes | "$SDKMANAGER" --licenses \
+            >/dev/null 2>&1 || true
 
-          echo ""
-          echo "Copie créée :"
-          ls -lh app-release-unsigned.apk
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-${ANDROID_COMPILE_SDK}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}"
 
+          echo "SDK Android configuré."
 
-      # ============================================================
-      # 10. Charger le keystore de signature
-      # ============================================================
+      # ========================================================
+      # 4. GRADLE
+      # ========================================================
 
-      - name: Decode signing keystore
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      # ========================================================
+      # 5. CHECK ENVIRONNEMENT
+      # ========================================================
+
+      - name: Check build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          java -version
+
+          gradle --version
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
+
+          test -x "$BUILD_TOOLS/apksigner"
+
+          test -x "$BUILD_TOOLS/zipalign"
+
+          echo "apksigner OK"
+
+          echo "zipalign OK"
+
+      # ========================================================
+      # 6. DOSSIERS MULTI ABI
+      # ========================================================
+
+      - name: Prepare multi-ABI miner asset directories
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p \
+            app/src/main/assets/miners/arm64-v8a
+
+          mkdir -p \
+            app/src/main/assets/miners/armeabi-v7a
+
+          mkdir -p \
+            app/src/main/assets/miners/x86_64
+
+          mkdir -p \
+            app/src/main/assets/miners/x86
+
+          rm -f \
+            app/src/main/assets/miners/arm64-v8a/*
+
+          rm -f \
+            app/src/main/assets/miners/armeabi-v7a/*
+
+          rm -f \
+            app/src/main/assets/miners/x86_64/*
+
+          rm -f \
+            app/src/main/assets/miners/x86/*
+
+      # ========================================================
+      # 7. CCMINER ARM64 A53
+      # ========================================================
+
+      - name: Download ccminer ARM64 A53
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OUTPUT="app/src/main/assets/miners/arm64-v8a/ccminer-a53"
+
+          curl \
+            -L \
+            --fail \
+            --show-error \
+            --retry 5 \
+            --retry-delay 2 \
+            "$CCMINER_ARM64_A53_URL" \
+            -o "$OUTPUT"
+
+          chmod +x "$OUTPUT"
+
+          echo "SHA256 ARM64 A53 :"
+
+          sha256sum "$OUTPUT"
+
+          ACTUAL_SHA256="$(
+            sha256sum "$OUTPUT" \
+              | awk '{print $1}'
+          )"
+
+          if [
+            "$ACTUAL_SHA256"
+              !=
+            "$CCMINER_ARM64_A53_SHA256"
+          ]; then
+
+            echo "ERREUR : SHA256 ARM64 A53 invalide."
+
+            exit 1
+          fi
+
+          echo "SHA256 ARM64 A53 validé."
+
+      # ========================================================
+      # 8. CCMINER ARM64 A55
+      # ========================================================
+
+      - name: Download ccminer ARM64 A55
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OUTPUT="app/src/main/assets/miners/arm64-v8a/ccminer-a55"
+
+          curl \
+            -L \
+            --fail \
+            --show-error \
+            --retry 5 \
+            --retry-delay 2 \
+            "$CCMINER_ARM64_A55_URL" \
+            -o "$OUTPUT"
+
+          chmod +x "$OUTPUT"
+
+          echo "SHA256 ARM64 A55 :"
+
+          sha256sum "$OUTPUT"
+
+          ACTUAL_SHA256="$(
+            sha256sum "$OUTPUT" \
+              | awk '{print $1}'
+          )"
+
+          if [
+            "$ACTUAL_SHA256"
+              !=
+            "$CCMINER_ARM64_A55_SHA256"
+          ]; then
+
+            echo "ERREUR : SHA256 ARM64 A55 invalide."
+
+            exit 1
+          fi
+
+          echo "SHA256 ARM64 A55 validé."
+
+      # ========================================================
+      # 9. CCMINER LEGACY
+      # ========================================================
+
+      - name: Download ccminer ARM64 legacy fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OUTPUT="app/src/main/assets/miners/arm64-v8a/ccminer-legacy"
+
+          curl \
+            -L \
+            --fail \
+            --show-error \
+            --retry 5 \
+            --retry-delay 2 \
+            "$CCMINER_ARM64_LEGACY_URL" \
+            -o "$OUTPUT"
+
+          chmod +x "$OUTPUT"
+
+          echo "SHA256 ARM64 legacy :"
+
+          sha256sum "$OUTPUT"
+
+          ACTUAL_SHA256="$(
+            sha256sum "$OUTPUT" \
+              | awk '{print $1}'
+          )"
+
+          if [
+            "$ACTUAL_SHA256"
+              !=
+            "$CCMINER_ARM64_LEGACY_SHA256"
+          ]; then
+
+            echo "ERREUR : SHA256 ARM64 legacy invalide."
+
+            exit 1
+          fi
+
+          echo "SHA256 ARM64 legacy validé."
+
+      # ========================================================
+      # 10. README ASSETS
+      # ========================================================
+
+      - name: Explain ABI slots
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > app/src/main/assets/miners/README.txt <<'EOF'
+          VERUMINE - MULTI ABI
+
+          Android supporte notamment :
+
+            arm64-v8a
+            armeabi-v7a
+            x86_64
+            x86
+
+          Le projet réserve un emplacement pour chaque ABI.
+
+          Cette version embarque trois mineurs ARM64 :
+
+            ccminer-a53
+            ccminer-a55
+            ccminer-legacy
+
+          Aucun binaire Linux Ubuntu/glibc n'est copié
+          dans x86/x86_64.
+
+          Aucun binaire ARMv7 non vérifié n'est copié.
+
+          L'application reste installable sur les autres ABI.
+          MinerBinaryManager ne lance jamais un binaire absent
+          ou incapable de passer son test.
+          EOF
+
+      # ========================================================
+      # 11. VÉRIFICATION ELF
+      # ========================================================
+
+      - name: Verify ARM64 miner ELF files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for FILE in \
+            app/src/main/assets/miners/arm64-v8a/ccminer-a53 \
+            app/src/main/assets/miners/arm64-v8a/ccminer-a55 \
+            app/src/main/assets/miners/arm64-v8a/ccminer-legacy
+          do
+
+            echo "======================================"
+
+            echo "Fichier : $FILE"
+
+            echo "======================================"
+
+            file "$FILE"
+
+            if ! readelf -h "$FILE" \
+              | grep -E "AArch64|ARM" \
+              >/dev/null; then
+
+              echo \
+                "ERREUR : fichier non ARM."
+
+              exit 1
+            fi
+
+            test -x "$FILE"
+
+          done
+
+      # ========================================================
+      # 12. STRUCTURE PROJET
+      # ========================================================
+
+      - name: Verify required project files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test \
+            -f settings.gradle \
+            || test \
+            -f settings.gradle.kts
+
+          test \
+            -f app/build.gradle \
+            || test \
+            -f app/build.gradle.kts
+
+          test \
+            -f app/src/main/java/com/farm/miner/MiningService.java
+
+          test \
+            -f app/src/main/java/com/farm/miner/MinerBinaryManager.java
+
+          echo \
+            "Fichiers Java requis présents."
+
+      # ========================================================
+      # 13. GRADLE WRAPPER
+      # ========================================================
+
+      - name: Prepare Gradle execution
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -f "./gradlew" ]; then
+
+            chmod +x ./gradlew
+
+            echo "gradlew trouvé."
+
+          else
+
+            echo \
+              "gradlew absent : "
+              "utilisation du Gradle configuré."
+
+          fi
+
+      # ========================================================
+      # 14. CLEAN
+      # ========================================================
+
+      - name: Clean Android build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -x "./gradlew" ]; then
+
+            ./gradlew clean
+
+          else
+
+            gradle clean
+
+          fi
+
+      # ========================================================
+      # 15. BUILD RELEASE
+      # ========================================================
+
+      - name: Assemble release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -x "./gradlew" ]; then
+
+            ./gradlew \
+              assembleRelease \
+              --stacktrace \
+              --warning-mode all
+
+          else
+
+            gradle \
+              assembleRelease \
+              --stacktrace \
+              --warning-mode all
+
+          fi
+
+      # ========================================================
+      # 16. LOCATE APK
+      # ========================================================
+
+      - name: Locate generated APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "APK trouvés :"
+
+          find \
+            app/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -print
+
+          APK="$(
+            find \
+              app/build/outputs/apk \
+              -type f \
+              -name "*release*.apk" \
+              | head -n 1 || true
+          )"
+
+          if [ -z "$APK" ]; then
+
+            APK="$(
+              find \
+                app/build/outputs/apk \
+                -type f \
+                -name "*.apk" \
+                | head -n 1 || true
+            )"
+
+          fi
+
+          if [ -z "$APK" ]; then
+
+            echo \
+              "ERREUR : aucun APK généré."
+
+            exit 1
+          fi
+
+          cp \
+            "$APK" \
+            app-release-unsigned.apk
+
+          echo \
+            "APK source : $APK"
+
+          ls -lh \
+            app-release-unsigned.apk
+
+      # ========================================================
+      # 17. INSPECTION APK
+      # ========================================================
+
+      - name: Inspect unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
+
+          "$BUILD_TOOLS/aapt" \
+            dump badging \
+            app-release-unsigned.apk \
+            | head -n 20 \
+            || true
+
+          echo \
+            "Assets mineurs :"
+
+          unzip -l \
+            app-release-unsigned.apk \
+            | grep "assets/miners/" \
+            || true
+
+      # ========================================================
+      # 18. ZIPALIGN
+      # ========================================================
+
+      - name: Align APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
+
+          "$BUILD_TOOLS/zipalign" \
+            -f \
+            -p \
+            4 \
+            app-release-unsigned.apk \
+            aligned.apk
+
+          "$BUILD_TOOLS/zipalign" \
+            -c \
+            -P 16 \
+            4 \
+            aligned.apk
+
+          ls -lh aligned.apk
+
+      # ========================================================
+      # 19. KEYSTORE
+      # ========================================================
+
+      - name: Load signing keystore
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "======================================"
-          echo "CHARGEMENT DU KEYSTORE"
-          echo "======================================"
+          if [ \
+            -z "${KEYSTORE_BASE64:-}" \
+          ]; then
 
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo ""
-            echo "ERREUR : KEYSTORE_BASE64 n'est pas configuré."
-            echo ""
-            echo "Les Secrets GitHub nécessaires sont :"
-            echo "  KEYSTORE_BASE64"
-            echo "  KEYSTORE_PASSWORD"
-            echo "  KEY_ALIAS"
-            echo "  KEY_PASSWORD"
+            echo \
+              "ERREUR : KEYSTORE_BASE64 "
+              "n'est pas configuré."
+
             exit 1
           fi
 
-          echo "$KEYSTORE_BASE64" | base64 --decode \
+          echo \
+            "$KEYSTORE_BASE64" \
+            | base64 --decode \
             > "$RUNNER_TEMP/verumine-release.keystore"
 
-          if [ ! -s "$RUNNER_TEMP/verumine-release.keystore" ]; then
-            echo "ERREUR : le keystore est vide ou invalide."
-            exit 1
-          fi
+          test -s \
+            "$RUNNER_TEMP/verumine-release.keystore"
 
-          echo "Keystore chargé avec succès."
+          echo "Keystore chargé."
 
+      # ========================================================
+      # 20. SIGNATURE
+      # ========================================================
 
-      # ============================================================
-      # 11. Signature de l'APK
-      # ============================================================
-
-      - name: Sign Release APK
+      - name: Sign APK
         shell: bash
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "======================================"
-          echo "SIGNATURE DE VERUMINE"
-          echo "======================================"
+          if [ \
+            -z "${KEYSTORE_PASSWORD:-}" \
+          ]; then
 
-          if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "ERREUR : KEYSTORE_PASSWORD n'est pas configuré."
+            echo \
+              "ERREUR : KEYSTORE_PASSWORD absent."
+
             exit 1
           fi
 
-          if [ -z "$KEY_ALIAS" ]; then
-            echo "ERREUR : KEY_ALIAS n'est pas configuré."
+          if [ \
+            -z "${KEY_ALIAS:-}" \
+          ]; then
+
+            echo \
+              "ERREUR : KEY_ALIAS absent."
+
             exit 1
           fi
 
-          if [ -z "$KEY_PASSWORD" ]; then
-            echo "ERREUR : KEY_PASSWORD n'est pas configuré."
+          if [ \
+            -z "${KEY_PASSWORD:-}" \
+          ]; then
+
+            echo \
+              "ERREUR : KEY_PASSWORD absent."
+
             exit 1
           fi
 
-          BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
-
-          if [ ! -f "$BUILD_TOOLS/zipalign" ]; then
-            echo "ERREUR : zipalign introuvable."
-            exit 1
-          fi
-
-          if [ ! -f "$BUILD_TOOLS/apksigner" ]; then
-            echo "ERREUR : apksigner introuvable."
-            exit 1
-          fi
-
-          echo "Build Tools : $BUILD_TOOLS"
-
-          echo ""
-          echo "Étape 1 : zipalign"
-
-          "$BUILD_TOOLS/zipalign" \
-            -p \
-            -f \
-            4 \
-            app-release-unsigned.apk \
-            aligned.apk
-
-          echo ""
-          echo "Étape 2 : signature"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
 
           "$BUILD_TOOLS/apksigner" sign \
-            --ks "$RUNNER_TEMP/verumine-release.keystore" \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --key-pass "pass:$KEY_PASSWORD" \
-            --out Verumine.apk \
+            --ks \
+            "$RUNNER_TEMP/verumine-release.keystore" \
+            --ks-key-alias \
+            "$KEY_ALIAS" \
+            --ks-pass \
+            "pass:$KEYSTORE_PASSWORD" \
+            --key-pass \
+            "pass:$KEY_PASSWORD" \
+            --out \
+            Verumine.apk \
             aligned.apk
 
-          rm -f aligned.apk
+          test -s \
+            Verumine.apk
 
-          echo ""
-          echo "APK signé avec succès."
+          ls -lh \
+            Verumine.apk
 
-          ls -lh Verumine.apk
-
-
-      # ============================================================
-      # 12. Vérification de la signature
-      # ============================================================
+      # ========================================================
+      # 21. VERIFY SIGNATURE
+      # ========================================================
 
       - name: Verify APK signature
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "======================================"
-          echo "VÉRIFICATION DE LA SIGNATURE"
-          echo "======================================"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
 
-          BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
-
-          "$BUILD_TOOLS/apksigner" verify \
+          "$BUILD_TOOLS/apksigner" \
+            verify \
             --verbose \
             Verumine.apk
 
-          echo ""
-          echo "======================================"
-          echo "SIGNATURE APK VALIDE"
-          echo "======================================"
+          echo \
+            "Signature APK valide."
 
+      # ========================================================
+      # 22. INFORMATIONS FINALES
+      # ========================================================
 
-      # ============================================================
-      # 13. Informations finales sur l'APK
-      # ============================================================
-
-      - name: APK information
+      - name: Final APK information
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "======================================"
-          echo "VERUMINE APK FINAL"
-          echo "======================================"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
 
-          echo ""
-          echo "Fichier :"
-          ls -lh Verumine.apk
+          echo "===================================="
 
-          echo ""
-          echo "Type :"
-          file Verumine.apk
+          echo "VERUMINE APK"
 
-          echo ""
-          echo "SHA256 :"
-          sha256sum Verumine.apk
+          echo "===================================="
 
-          echo ""
-          echo "APK prêt."
+          ls -lh \
+            Verumine.apk
 
+          echo
 
-      # ============================================================
-      # 14. Publier l'APK comme Artifact
-      # ============================================================
+          echo "Package :"
 
-      - name: Upload signed APK
+          "$BUILD_TOOLS/aapt" \
+            dump badging \
+            Verumine.apk \
+            | grep "^package:" \
+            || true
+
+          echo
+
+          echo "Assets mineurs :"
+
+          unzip -l \
+            Verumine.apk \
+            | grep "assets/miners/" \
+            || true
+
+      # ========================================================
+      # 23. ARTIFACT
+      # ========================================================
+
+      - name: Upload Verumine APK
         uses: actions/upload-artifact@v4
         with:
           name: Verumine-Android
           path: Verumine.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
