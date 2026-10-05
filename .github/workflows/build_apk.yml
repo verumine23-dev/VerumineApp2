@@ -427,7 +427,7 @@ jobs:
 
           fi
 
-      # ========================================================
+            # ========================================================
       # 15. LOCATE APK
       # ========================================================
 
@@ -438,49 +438,33 @@ jobs:
 
           echo "APK trouvés :"
 
-          find \
-            app/build/outputs/apk \
+          find app/build/outputs/apk \
             -type f \
             -name "*.apk" \
             -print
 
-          APK="$(
-            find \
-              app/build/outputs/apk \
-              -type f \
-              -name "*release*.apk" \
-              | head -n 1 || true
-          )"
+          APK="$(find app/build/outputs/apk \
+            -type f \
+            -name "*release*.apk" \
+            | head -n 1 || true)"
 
           if [ -z "$APK" ]; then
-
-            APK="$(
-              find \
-                app/build/outputs/apk \
-                -type f \
-                -name "*.apk" \
-                | head -n 1 || true
-            )
-
+            APK="$(find app/build/outputs/apk \
+              -type f \
+              -name "*.apk" \
+              | head -n 1 || true)"
           fi
 
           if [ -z "$APK" ]; then
-
-            echo \
-              "ERREUR : aucun APK généré."
-
+            echo "ERREUR : aucun APK généré."
             exit 1
           fi
 
-          cp \
-            "$APK" \
-            app-release-unsigned.apk
+          cp "$APK" app-release-unsigned.apk
 
-          echo \
-            "APK source : $APK"
+          echo "APK source : $APK"
 
-          ls -lh \
-            app-release-unsigned.apk
+          ls -lh app-release-unsigned.apk
 
       # ========================================================
       # 16. INSPECTION APK
