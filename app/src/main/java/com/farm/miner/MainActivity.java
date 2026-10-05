@@ -13,46 +13,109 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+    protected void onCreate(
+            Bundle savedInstanceState
+    ) {
+
+        super.onCreate(
+                savedInstanceState
+        );
+
+        setContentView(
+                R.layout.activity_main
+        );
 
         requestBatteryExemption();
-        startMiningService();
 
-        if (savedInstanceState == null) {
-            getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, new DashboardFragment())
+        Intent serviceIntent =
+                new Intent(
+                        this,
+                        MiningService.class
+                );
+
+        if (
+                Build.VERSION.SDK_INT
+                        >= Build.VERSION_CODES.O
+        ) {
+
+            startForegroundService(
+                    serviceIntent
+            );
+
+        } else {
+
+            startService(
+                    serviceIntent
+            );
+        }
+
+        if (
+                savedInstanceState == null
+        ) {
+
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(
+                            R.id.fragment_container,
+                            new DashboardFragment()
+                    )
                     .commit();
         }
     }
 
-    private void startMiningService() {
-        Intent serviceIntent = new Intent(this, MiningService.class);
+    private void requestBatteryExemption() {
+
+        if (
+                Build.VERSION.SDK_INT
+                        < Build.VERSION_CODES.M
+        ) {
+
+            return;
+        }
+
+        PowerManager powerManager =
+                (PowerManager)
+                        getSystemService(
+                                Context.POWER_SERVICE
+                        );
+
+        if (powerManager == null) {
+            return;
+        }
+
+        if (
+                powerManager.isIgnoringBatteryOptimizations(
+                        getPackageName()
+                )
+        ) {
+
+            return;
+        }
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent);
-            } else {
-                startService(serviceIntent);
-            }
-        } catch (Exception e) {
-            android.util.Log.e("VerumineMain", "Impossible de démarrer MiningService", e);
-        }
-    }
 
-    private void requestBatteryExemption() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                try {
-                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                } catch (Exception e) {
-                    android.util.Log.w("VerumineMain", "Demande d'exemption batterie indisponible", e);
-                }
-            }
+            Intent intent =
+                    new Intent(
+                            Settings
+                                    .ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                    );
+
+            intent.setData(
+                    Uri.parse(
+                            "package:"
+                                    + getPackageName()
+                    )
+            );
+
+            startActivity(intent);
+
+        } catch (Exception ignored) {
+
+            /*
+             * Certains fabricants bloquent cette demande.
+             * L'application continue à fonctionner sans
+             * cette exemption.
+             */
         }
     }
 }
