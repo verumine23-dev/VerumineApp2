@@ -46,26 +46,46 @@ jobs:
 
           echo "ANDROID_HOME=$ANDROID_HOME"
 
-          yes | sdkmanager --licenses >/dev/null || true
+          # Recherche du sdkmanager installé sur le runner
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
+            -type f \
+            -name "sdkmanager" \
+            | head -n 1)
 
-          sdkmanager \
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERREUR : sdkmanager introuvable."
+            echo "Contenu de cmdline-tools :"
+            find "$ANDROID_HOME/cmdline-tools" -maxdepth 3 -type f -print || true
+            exit 1
+          fi
+
+          echo "sdkmanager trouvé : $SDKMANAGER"
+
+          # Acceptation des licences
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          # Installation des composants nécessaires
+          "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-          echo "Android SDK configuré."
+          echo ""
+          echo "======================================"
+          echo "ANDROID SDK CONFIGURÉ"
+          echo "======================================"
 
           echo ""
-          echo "Build Tools disponibles :"
-          ls -la "$ANDROID_HOME/build-tools"
-
-          echo ""
-          echo "Platforms disponibles :"
+          echo "Platforms :"
           ls -la "$ANDROID_HOME/platforms"
+
+          echo ""
+          echo "Build Tools :"
+          ls -la "$ANDROID_HOME/build-tools"
 
 
       # ============================================================
-      # 4. Gradle 8.2
+      # 4. Configuration Gradle
       # ============================================================
 
       - name: Set up Gradle
@@ -75,7 +95,37 @@ jobs:
 
 
       # ============================================================
-      # 5. Télécharger ccminer ARM64
+      # 5. Vérification de l'environnement
+      # ============================================================
+
+      - name: Check build environment
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "ENVIRONNEMENT DE COMPILATION"
+          echo "======================================"
+
+          echo ""
+          echo "Java :"
+          java -version
+
+          echo ""
+          echo "Gradle :"
+          gradle --version
+
+          echo ""
+          echo "ANDROID_HOME :"
+          echo "$ANDROID_HOME"
+
+          echo ""
+          echo "Build Tools :"
+          ls -la "$ANDROID_HOME/build-tools/34.0.0"
+
+
+      # ============================================================
+      # 6. Télécharger ccminer ARM64
       # ============================================================
 
       - name: Download ccminer ARM64
@@ -89,7 +139,12 @@ jobs:
 
           OUTPUT="app/src/main/assets/ccminer-arm64"
 
-          echo "Téléchargement de ccminer..."
+          echo "======================================"
+          echo "TÉLÉCHARGEMENT DE CCMINER"
+          echo "======================================"
+
+          echo "URL : $URL"
+          echo "Destination : $OUTPUT"
 
           curl \
             -L \
@@ -105,22 +160,59 @@ jobs:
 
           ACTUAL_SHA256=$(sha256sum "$OUTPUT" | awk '{print $1}')
 
+          echo ""
           echo "SHA256 attendu :"
           echo "$EXPECTED_SHA256"
 
+          echo ""
           echo "SHA256 obtenu :"
           echo "$ACTUAL_SHA256"
 
           if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo ""
             echo "ERREUR : SHA256 de ccminer incorrect."
             exit 1
           fi
 
+          echo ""
           echo "ccminer vérifié avec succès."
+
+          echo ""
+          ls -lh "$OUTPUT"
 
 
       # ============================================================
-      # 6. Compiler l'application
+      # 7. Vérification de la structure Android
+      # ============================================================
+
+      - name: Check Android project
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "STRUCTURE DU PROJET"
+          echo "======================================"
+
+          echo ""
+          echo "Projet :"
+          ls -la
+
+          echo ""
+          echo "Application :"
+          ls -la app
+
+          echo ""
+          echo "Java :"
+          find app/src/main/java -type f -name "*.java" -print
+
+          echo ""
+          echo "Assets :"
+          find app/src/main/assets -maxdepth 2 -type f -print
+
+
+      # ============================================================
+      # 8. Nettoyage + compilation Release
       # ============================================================
 
       - name: Build Release APK
@@ -128,13 +220,15 @@ jobs:
         run: |
           set -e
 
-          echo "Compilation de Verumine..."
+          echo "======================================"
+          echo "COMPILATION DE VERUMINE"
+          echo "======================================"
 
           gradle clean assembleRelease --stacktrace
 
 
       # ============================================================
-      # 7. Trouver l'APK
+      # 9. Recherche de l'APK
       # ============================================================
 
       - name: Locate Release APK
@@ -142,7 +236,9 @@ jobs:
         run: |
           set -e
 
-          echo "APK générés :"
+          echo "======================================"
+          echo "APK GÉNÉRÉS"
+          echo "======================================"
 
           find app/build/outputs/apk \
             -type f \
@@ -155,17 +251,31 @@ jobs:
             | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERREUR : aucun APK trouvé."
+            echo ""
+            echo "ERREUR : aucun APK Release trouvé."
+
+            echo ""
+            echo "Contenu de app/build/outputs :"
+
+            find app/build/outputs \
+              -type f \
+              -print || true
+
             exit 1
           fi
 
+          echo ""
           echo "APK trouvé : $APK"
 
           cp "$APK" app-release-unsigned.apk
 
+          echo ""
+          echo "Copie créée :"
+          ls -lh app-release-unsigned.apk
+
 
       # ============================================================
-      # 8. Charger le keystore
+      # 10. Charger le keystore de signature
       # ============================================================
 
       - name: Decode signing keystore
@@ -175,8 +285,19 @@ jobs:
         run: |
           set -e
 
+          echo "======================================"
+          echo "CHARGEMENT DU KEYSTORE"
+          echo "======================================"
+
           if [ -z "$KEYSTORE_BASE64" ]; then
+            echo ""
             echo "ERREUR : KEYSTORE_BASE64 n'est pas configuré."
+            echo ""
+            echo "Les Secrets GitHub nécessaires sont :"
+            echo "  KEYSTORE_BASE64"
+            echo "  KEYSTORE_PASSWORD"
+            echo "  KEY_ALIAS"
+            echo "  KEY_PASSWORD"
             exit 1
           fi
 
@@ -184,7 +305,7 @@ jobs:
             > "$RUNNER_TEMP/verumine-release.keystore"
 
           if [ ! -s "$RUNNER_TEMP/verumine-release.keystore" ]; then
-            echo "ERREUR : keystore vide ou invalide."
+            echo "ERREUR : le keystore est vide ou invalide."
             exit 1
           fi
 
@@ -192,7 +313,7 @@ jobs:
 
 
       # ============================================================
-      # 9. Signer l'APK
+      # 11. Signature de l'APK
       # ============================================================
 
       - name: Sign Release APK
@@ -203,6 +324,10 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
+
+          echo "======================================"
+          echo "SIGNATURE DE VERUMINE"
+          echo "======================================"
 
           if [ -z "$KEYSTORE_PASSWORD" ]; then
             echo "ERREUR : KEYSTORE_PASSWORD n'est pas configuré."
@@ -221,7 +346,20 @@ jobs:
 
           BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
 
-          echo "Utilisation de : $BUILD_TOOLS"
+          if [ ! -f "$BUILD_TOOLS/zipalign" ]; then
+            echo "ERREUR : zipalign introuvable."
+            exit 1
+          fi
+
+          if [ ! -f "$BUILD_TOOLS/apksigner" ]; then
+            echo "ERREUR : apksigner introuvable."
+            exit 1
+          fi
+
+          echo "Build Tools : $BUILD_TOOLS"
+
+          echo ""
+          echo "Étape 1 : zipalign"
 
           "$BUILD_TOOLS/zipalign" \
             -p \
@@ -229,6 +367,9 @@ jobs:
             4 \
             app-release-unsigned.apk \
             aligned.apk
+
+          echo ""
+          echo "Étape 2 : signature"
 
           "$BUILD_TOOLS/apksigner" sign \
             --ks "$RUNNER_TEMP/verumine-release.keystore" \
@@ -240,11 +381,14 @@ jobs:
 
           rm -f aligned.apk
 
+          echo ""
           echo "APK signé avec succès."
+
+          ls -lh Verumine.apk
 
 
       # ============================================================
-      # 10. Vérifier la signature
+      # 12. Vérification de la signature
       # ============================================================
 
       - name: Verify APK signature
@@ -252,43 +396,53 @@ jobs:
         run: |
           set -e
 
+          echo "======================================"
+          echo "VÉRIFICATION DE LA SIGNATURE"
+          echo "======================================"
+
           BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
 
           "$BUILD_TOOLS/apksigner" verify \
             --verbose \
             Verumine.apk
 
+          echo ""
           echo "======================================"
           echo "SIGNATURE APK VALIDE"
           echo "======================================"
 
 
       # ============================================================
-      # 11. Informations APK
+      # 13. Informations finales sur l'APK
       # ============================================================
 
       - name: APK information
         shell: bash
         run: |
+          set -e
+
           echo "======================================"
-          echo "VERUMINE APK"
+          echo "VERUMINE APK FINAL"
           echo "======================================"
 
+          echo ""
+          echo "Fichier :"
           ls -lh Verumine.apk
 
           echo ""
-          echo "SHA256 :"
+          echo "Type :"
+          file Verumine.apk
 
+          echo ""
+          echo "SHA256 :"
           sha256sum Verumine.apk
 
           echo ""
-          echo "Type :"
-
-          file Verumine.apk
+          echo "APK prêt."
 
 
       # ============================================================
-      # 12. Publier l'APK
+      # 14. Publier l'APK comme Artifact
       # ============================================================
 
       - name: Upload signed APK
