@@ -1,66 +1,313 @@
-name: Verumine CI Build Pipeline
+````yaml
+name: Build Verumine APK
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  build-apk:
+  build:
+    name: Build and Sign Verumine APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
+      # ------------------------------------------------------------
+      # 1. Récupération du projet
+      # ------------------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java JDK 17
+      # ------------------------------------------------------------
+      # 2. Configuration Java 17
+      # ------------------------------------------------------------
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
 
-      - name: Set up Gradle 8.2
+      # ------------------------------------------------------------
+      # 3. Configuration Android SDK
+      # ------------------------------------------------------------
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ------------------------------------------------------------
+      # 4. Configuration Gradle
+      # ------------------------------------------------------------
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2'
 
-      - name: Download Verus ARM ccminer
+      # ------------------------------------------------------------
+      # 5. Télécharger ccminer ARM64
+      # ------------------------------------------------------------
+      - name: Download ccminer ARM64
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
+
           mkdir -p app/src/main/assets
 
           URL="https://github.com/Oink70/CCminer-ARM-optimized/releases/download/v3.8.3-4/ccminer-3.8.3-4_ARM"
-          FILE="app/src/main/assets/ccminer-arm64"
+          OUTPUT="app/src/main/assets/ccminer-arm64"
+
+          echo "Téléchargement de ccminer..."
+
+          curl -L --fail --show-error --retry 3 \
+            "$URL" \
+            -o "$OUTPUT"
+
+          chmod +x "$OUTPUT"
+
+          echo "SHA256 obtenu :"
+          sha256sum "$OUTPUT"
+
           EXPECTED_SHA256="56f71fa313d5f942283ea1d8f02f679088c612f08607928f33612d4f387fb004"
 
-          echo "Downloading Verus ARM ccminer..."
-          curl -fL --retry 5 --retry-delay 2 --connect-timeout 20 --max-time 300 \
-            -o "$FILE" "$URL"
+          ACTUAL_SHA256=$(sha256sum "$OUTPUT" | awk '{print $1}')
 
-          echo "$EXPECTED_SHA256  $FILE" | sha256sum -c -
-          chmod 755 "$FILE"
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "ERREUR : SHA256 de ccminer incorrect."
+            echo "Attendu : $EXPECTED_SHA256"
+            echo "Obtenu  : $ACTUAL_SHA256"
+            exit 1
+          fi
 
-          test -s "$FILE"
-          file "$FILE" || true
-          ls -lh "$FILE"
+          echo "SHA256 vérifié avec succès."
 
-      - name: Verify Gradle
-        run: gradle --version
-
-      - name: Assemble Release APK
-        run: gradle assembleRelease --stacktrace
-
-      - name: Verify APK Output
+      # ------------------------------------------------------------
+      # 6. Vérification de la structure du projet
+      # ------------------------------------------------------------
+      - name: Check Android project
         shell: bash
         run: |
-          set -euo pipefail
-          ls -lah app/build/outputs/apk/release/
-          test -n "$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          set -e
 
-      - name: Upload Verumine APK
+          echo "Structure du projet :"
+          ls -la
+
+          echo "Application :"
+          ls -la app
+
+          echo "Assets :"
+          ls -la app/src/main/assets
+
+      # ------------------------------------------------------------
+      # 7. Compilation Release
+      # ------------------------------------------------------------
+      - name: Build Release APK
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean assembleRelease --stacktrace
+
+      # ------------------------------------------------------------
+      # 8. Vérification de l'APK généré
+      # ------------------------------------------------------------
+      - name: Locate APK
+        shell: bash
+        run: |
+          set -e
+
+          echo "APK générés :"
+          find app/build/outputs/apk -type f -name "*.apk" -print
+
+          APK=$(find app/build/outputs/apk/release -type f -name "*.apk" ! -name "*unsigned*" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "Aucun APK Release valide trouvé."
+            echo "Contenu du dossier :"
+            find app/build/outputs/apk -type f -print
+            exit 1
+          fi
+
+          echo "APK trouvé : $APK"
+
+          cp "$APK" app-release-unsigned.apk
+
+      # ------------------------------------------------------------
+      # 9. Préparation de la signature
+      # ------------------------------------------------------------
+      #
+      # GitHub Secrets nécessaires :
+      #
+      # KEYSTORE_BASE64
+      # KEYSTORE_PASSWORD
+      # KEY_ALIAS
+      # KEY_PASSWORD
+      #
+      # ------------------------------------------------------------
+      - name: Decode signing keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -e
+
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ERREUR : le secret KEYSTORE_BASE64 n'est pas configuré."
+            exit 1
+          fi
+
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/verumine-release.keystore"
+
+          if [ ! -s "$RUNNER_TEMP/verumine-release.keystore" ]; then
+            echo "ERREUR : le keystore est vide ou invalide."
+            exit 1
+          fi
+
+          echo "Keystore chargé."
+
+      # ------------------------------------------------------------
+      # 10. Signature de l'APK
+      # ------------------------------------------------------------
+      - name: Sign Release APK
+        shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+
+          APK_INPUT="app-release-unsigned.apk"
+          APK_OUTPUT="Verumine.apk"
+
+          if [ ! -f "$APK_INPUT" ]; then
+            echo "ERREUR : APK non signé introuvable."
+            exit 1
+          fi
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "ERREUR : KEYSTORE_PASSWORD n'est pas configuré."
+            exit 1
+          fi
+
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "ERREUR : KEY_ALIAS n'est pas configuré."
+            exit 1
+          fi
+
+          if [ -z "$KEY_PASSWORD" ]; then
+            echo "ERREUR : KEY_PASSWORD n'est pas configuré."
+            exit 1
+          fi
+
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+
+          echo "Android Build Tools : $BUILD_TOOLS"
+
+          "$BUILD_TOOLS/zipalign" \
+            -p \
+            -f \
+            4 \
+            "$APK_INPUT" \
+            aligned.apk
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$RUNNER_TEMP/verumine-release.keystore" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out "$APK_OUTPUT" \
+            aligned.apk
+
+          rm -f aligned.apk
+
+          echo "APK signé avec succès : $APK_OUTPUT"
+
+      # ------------------------------------------------------------
+      # 11. Vérification de la signature
+      # ------------------------------------------------------------
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -e
+
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+
+          "$BUILD_TOOLS/apksigner" verify \
+            --verbose \
+            Verumine.apk
+
+          echo "Signature APK vérifiée avec succès."
+
+      # ------------------------------------------------------------
+      # 12. Informations sur l'APK
+      # ------------------------------------------------------------
+      - name: APK information
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "VERUMINE APK"
+          echo "======================================"
+
+          ls -lh Verumine.apk
+
+          echo ""
+          echo "SHA256 :"
+          sha256sum Verumine.apk
+
+          echo ""
+          echo "Type :"
+          file Verumine.apk
+
+      # ------------------------------------------------------------
+      # 13. Publication de l'APK signé
+      # ------------------------------------------------------------
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Verumine-Release-APK
-          path: app/build/outputs/apk/release/*.apk
+          name: Verumine-Android
+          path: Verumine.apk
           if-no-files-found: error
+          retention-days: 30
+
+### Il reste une étape importante : créer la clé
+
+Le workflow ci-dessus attend **4 Secrets GitHub** :
+
+```text
+KEYSTORE_BASE64
+KEYSTORE_PASSWORD
+KEY_ALIAS
+KEY_PASSWORD
+````
+
+Tu ne dois surtout pas mettre ces mots de passe directement dans `build_apk.yml`.
+
+Pour ton projet, je te conseille de faire la configuration **une seule fois**, puis de conserver cette même clé pour toutes les futures versions de Verumine.
+
+### Ensuite
+
+Une fois les Secrets configurés :
+
+**GitHub → Actions → Build Verumine APK → Run workflow**
+
+À la fin, tu devrais obtenir :
+
+```text
+Artifacts
+└── Verumine-Android
+    └── Verumine.apk
+```
+
+Et contrairement au fichier que tu m'as envoyé :
+
+```text
+app-release-unsigned.apk
+```
+
+celui-ci sera **signé et installable sur Android**.
+
+Si tu veux, je peux maintenant te guider **étape par étape pour créer la clé de signature et les 4 Secrets GitHub**, sans avoir besoin d'installer Android Studio sur ton PC.
