@@ -28,7 +28,6 @@ env:
 
   CCMINER_ARM64_A55_SHA256: "d3b182994e499dd4957ebeead25565c382b7e6b6efa4a017533d9b22f0d83f7c"
 
-   
 jobs:
 
   build:
@@ -146,7 +145,7 @@ jobs:
             app/src/main/assets/miners/armeabi-v7a
 
           mkdir -p \
-            app/src/main/assets/miners/x86_64
+            app/src/main/assets/x86_64
 
           mkdir -p \
             app/src/main/assets/miners/x86
@@ -158,7 +157,7 @@ jobs:
             app/src/main/assets/miners/armeabi-v7a/*
 
           rm -f \
-            app/src/main/assets/miners/x86_64/*
+            app/src/main/assets/x86_64/*
 
           rm -f \
             app/src/main/assets/miners/x86/*
@@ -251,10 +250,8 @@ jobs:
 
           echo "SHA256 ARM64 A55 validé."
 
-       
-
       # ========================================================
-      # 10. README ASSETS
+      # 9. README ASSETS
       # ========================================================
 
       - name: Explain ABI slots
@@ -274,11 +271,10 @@ jobs:
 
           Le projet réserve un emplacement pour chaque ABI.
 
-          Cette version embarque trois mineurs ARM64 :
+          Cette version embarque deux mineurs ARM64 :
 
             ccminer-a53
             ccminer-a55
-            ccminer-legacy
 
           Aucun binaire Linux Ubuntu/glibc n'est copié
           dans x86/x86_64.
@@ -286,12 +282,13 @@ jobs:
           Aucun binaire ARMv7 non vérifié n'est copié.
 
           L'application reste installable sur les autres ABI.
+
           MinerBinaryManager ne lance jamais un binaire absent
           ou incapable de passer son test.
           EOF
 
       # ========================================================
-      # 11. VÉRIFICATION ELF
+      # 10. VÉRIFICATION ELF
       # ========================================================
 
       - name: Verify ARM64 miner ELF files
@@ -301,8 +298,7 @@ jobs:
 
           for FILE in \
             app/src/main/assets/miners/arm64-v8a/ccminer-a53 \
-            app/src/main/assets/miners/arm64-v8a/ccminer-a55 \
-            app/src/main/assets/miners/arm64-v8a/ccminer-legacy
+            app/src/main/assets/miners/arm64-v8a/ccminer-a55
           do
 
             echo "======================================"
@@ -311,14 +307,18 @@ jobs:
 
             echo "======================================"
 
+            if [ ! -f "$FILE" ]; then
+              echo "ERREUR : fichier absent : $FILE"
+              exit 1
+            fi
+
             file "$FILE"
 
-            if ! readelf -h "$FILE" \
-              | grep -E "AArch64|ARM" \
-              >/dev/null; then
+            readelf -h "$FILE" | grep -E \
+              "Class:|Machine:"
 
-              echo \
-                "ERREUR : fichier non ARM."
+            if ! file "$FILE" | grep -Eq "ARM aarch64|ARM64"; then
+              echo "ERREUR : $FILE n'est pas un exécutable ARM64."
 
               exit 1
             fi
@@ -327,8 +327,13 @@ jobs:
 
           done
 
+          echo ""
+          echo "======================================"
+          echo "Tous les mineurs ARM64 sont valides."
+          echo "======================================"
+
       # ========================================================
-      # 12. STRUCTURE PROJET
+      # 11. STRUCTURE PROJET
       # ========================================================
 
       - name: Verify required project files
@@ -356,7 +361,7 @@ jobs:
             "Fichiers Java requis présents."
 
       # ========================================================
-      # 13. GRADLE WRAPPER
+      # 12. GRADLE WRAPPER
       # ========================================================
 
       - name: Prepare Gradle execution
@@ -373,13 +378,13 @@ jobs:
           else
 
             echo \
-              "gradlew absent : "
+              "gradlew absent : " \
               "utilisation du Gradle configuré."
 
           fi
 
       # ========================================================
-      # 14. CLEAN
+      # 13. CLEAN
       # ========================================================
 
       - name: Clean Android build
@@ -398,7 +403,7 @@ jobs:
           fi
 
       # ========================================================
-      # 15. BUILD RELEASE
+      # 14. BUILD RELEASE
       # ========================================================
 
       - name: Assemble release APK
@@ -423,7 +428,7 @@ jobs:
           fi
 
       # ========================================================
-      # 16. LOCATE APK
+      # 15. LOCATE APK
       # ========================================================
 
       - name: Locate generated APK
@@ -455,7 +460,7 @@ jobs:
                 -type f \
                 -name "*.apk" \
                 | head -n 1 || true
-            )"
+            )
 
           fi
 
@@ -478,7 +483,7 @@ jobs:
             app-release-unsigned.apk
 
       # ========================================================
-      # 17. INSPECTION APK
+      # 16. INSPECTION APK
       # ========================================================
 
       - name: Inspect unsigned APK
@@ -503,7 +508,7 @@ jobs:
             || true
 
       # ========================================================
-      # 18. ZIPALIGN
+      # 17. ZIPALIGN
       # ========================================================
 
       - name: Align APK
@@ -529,7 +534,7 @@ jobs:
           ls -lh aligned.apk
 
       # ========================================================
-      # 19. KEYSTORE
+      # 18. KEYSTORE
       # ========================================================
 
       - name: Load signing keystore
@@ -539,12 +544,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ \
-            -z "${KEYSTORE_BASE64:-}" \
+          if [
+            -z "${KEYSTORE_BASE64:-}"
           ]; then
 
             echo \
-              "ERREUR : KEYSTORE_BASE64 "
+              "ERREUR : KEYSTORE_BASE64 " \
               "n'est pas configuré."
 
             exit 1
@@ -561,7 +566,7 @@ jobs:
           echo "Keystore chargé."
 
       # ========================================================
-      # 20. SIGNATURE
+      # 19. SIGNATURE
       # ========================================================
 
       - name: Sign APK
@@ -573,8 +578,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ \
-            -z "${KEYSTORE_PASSWORD:-}" \
+          if [
+            -z "${KEYSTORE_PASSWORD:-}"
           ]; then
 
             echo \
@@ -583,8 +588,8 @@ jobs:
             exit 1
           fi
 
-          if [ \
-            -z "${KEY_ALIAS:-}" \
+          if [
+            -z "${KEY_ALIAS:-}"
           ]; then
 
             echo \
@@ -593,8 +598,8 @@ jobs:
             exit 1
           fi
 
-          if [ \
-            -z "${KEY_PASSWORD:-}" \
+          if [
+            -z "${KEY_PASSWORD:-}"
           ]; then
 
             echo \
@@ -625,7 +630,7 @@ jobs:
             Verumine.apk
 
       # ========================================================
-      # 21. VERIFY SIGNATURE
+      # 20. VERIFY SIGNATURE
       # ========================================================
 
       - name: Verify APK signature
@@ -644,7 +649,7 @@ jobs:
             "Signature APK valide."
 
       # ========================================================
-      # 22. INFORMATIONS FINALES
+      # 21. INFORMATIONS FINALES
       # ========================================================
 
       - name: Final APK information
@@ -683,7 +688,7 @@ jobs:
             || true
 
       # ========================================================
-      # 23. ARTIFACT
+      # 22. ARTIFACT
       # ========================================================
 
       - name: Upload Verumine APK
