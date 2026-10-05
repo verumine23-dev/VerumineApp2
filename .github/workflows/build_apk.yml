@@ -15,8 +15,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ============================================================
+      # 1. Récupération du projet
+      # ============================================================
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+
+      # ============================================================
+      # 2. Java 17
+      # ============================================================
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -24,13 +34,49 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+
+      # ============================================================
+      # 3. Configuration Android SDK
+      # ============================================================
+
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          set -e
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+
+          echo "Android SDK configuré."
+
+          echo ""
+          echo "Build Tools disponibles :"
+          ls -la "$ANDROID_HOME/build-tools"
+
+          echo ""
+          echo "Platforms disponibles :"
+          ls -la "$ANDROID_HOME/platforms"
+
+
+      # ============================================================
+      # 4. Gradle 8.2
+      # ============================================================
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2'
+
+
+      # ============================================================
+      # 5. Télécharger ccminer ARM64
+      # ============================================================
 
       - name: Download ccminer ARM64
         shell: bash
@@ -40,42 +86,73 @@ jobs:
           mkdir -p app/src/main/assets
 
           URL="https://github.com/Oink70/CCminer-ARM-optimized/releases/download/v3.8.3-4/ccminer-3.8.3-4_ARM"
+
           OUTPUT="app/src/main/assets/ccminer-arm64"
 
-          curl -L --fail --show-error --retry 3 \
+          echo "Téléchargement de ccminer..."
+
+          curl \
+            -L \
+            --fail \
+            --show-error \
+            --retry 3 \
             "$URL" \
             -o "$OUTPUT"
 
           chmod +x "$OUTPUT"
 
           EXPECTED_SHA256="56f71fa313d5f942283ea1d8f02f679088c612f08607928f33612d4f387fb004"
+
           ACTUAL_SHA256=$(sha256sum "$OUTPUT" | awk '{print $1}')
 
-          echo "SHA256 attendu : $EXPECTED_SHA256"
-          echo "SHA256 obtenu  : $ACTUAL_SHA256"
+          echo "SHA256 attendu :"
+          echo "$EXPECTED_SHA256"
+
+          echo "SHA256 obtenu :"
+          echo "$ACTUAL_SHA256"
 
           if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "ERREUR : SHA256 incorrect."
+            echo "ERREUR : SHA256 de ccminer incorrect."
             exit 1
           fi
 
           echo "ccminer vérifié avec succès."
 
+
+      # ============================================================
+      # 6. Compiler l'application
+      # ============================================================
+
       - name: Build Release APK
         shell: bash
         run: |
           set -e
+
+          echo "Compilation de Verumine..."
+
           gradle clean assembleRelease --stacktrace
 
-      - name: Find Release APK
+
+      # ============================================================
+      # 7. Trouver l'APK
+      # ============================================================
+
+      - name: Locate Release APK
         shell: bash
         run: |
           set -e
 
           echo "APK générés :"
-          find app/build/outputs/apk -type f -name "*.apk" -print
 
-          APK=$(find app/build/outputs/apk/release -type f -name "*.apk" | head -n 1)
+          find app/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -print
+
+          APK=$(find app/build/outputs/apk/release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
 
           if [ -z "$APK" ]; then
             echo "ERREUR : aucun APK trouvé."
@@ -83,7 +160,13 @@ jobs:
           fi
 
           echo "APK trouvé : $APK"
+
           cp "$APK" app-release-unsigned.apk
+
+
+      # ============================================================
+      # 8. Charger le keystore
+      # ============================================================
 
       - name: Decode signing keystore
         shell: bash
@@ -97,12 +180,20 @@ jobs:
             exit 1
           fi
 
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/verumine-release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 --decode \
+            > "$RUNNER_TEMP/verumine-release.keystore"
 
           if [ ! -s "$RUNNER_TEMP/verumine-release.keystore" ]; then
-            echo "ERREUR : keystore invalide ou vide."
+            echo "ERREUR : keystore vide ou invalide."
             exit 1
           fi
+
+          echo "Keystore chargé avec succès."
+
+
+      # ============================================================
+      # 9. Signer l'APK
+      # ============================================================
 
       - name: Sign Release APK
         shell: bash
@@ -128,7 +219,9 @@ jobs:
             exit 1
           fi
 
-          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
+
+          echo "Utilisation de : $BUILD_TOOLS"
 
           "$BUILD_TOOLS/zipalign" \
             -p \
@@ -147,18 +240,34 @@ jobs:
 
           rm -f aligned.apk
 
+          echo "APK signé avec succès."
+
+
+      # ============================================================
+      # 10. Vérifier la signature
+      # ============================================================
+
       - name: Verify APK signature
         shell: bash
         run: |
           set -e
 
-          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
 
-          "$BUILD_TOOLS/apksigner" verify --verbose Verumine.apk
+          "$BUILD_TOOLS/apksigner" verify \
+            --verbose \
+            Verumine.apk
 
-          echo "Signature APK valide."
+          echo "======================================"
+          echo "SIGNATURE APK VALIDE"
+          echo "======================================"
 
-      - name: Show APK information
+
+      # ============================================================
+      # 11. Informations APK
+      # ============================================================
+
+      - name: APK information
         shell: bash
         run: |
           echo "======================================"
@@ -169,7 +278,18 @@ jobs:
 
           echo ""
           echo "SHA256 :"
+
           sha256sum Verumine.apk
+
+          echo ""
+          echo "Type :"
+
+          file Verumine.apk
+
+
+      # ============================================================
+      # 12. Publier l'APK
+      # ============================================================
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
